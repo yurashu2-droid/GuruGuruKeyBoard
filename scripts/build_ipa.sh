@@ -16,37 +16,13 @@ xcodebuild -project KurukuruKeyboard.xcodeproj -scheme KurukuruKeyboard \
 APP="$BUILD_DIR/KurukuruKeyboard.xcarchive/Products/Applications/KurukuruKeyboard.app"
 test -d "$APP"
 
-# AzooKey 0.11.2 links llama.framework into the IME executable, but Xcode does
-# not embed that binary-target framework in this app-extension arrangement.
-# Without it, dyld terminates the keyboard before viewDidLoad and iOS falls
-# straight back to the previous keyboard.
+# AzooKey 0.11.2 can emit a strong runtime dependency on llama.framework
+# even though this build has Zenzai traits disabled and uses no llama symbols.
+# Make that unused dependency weak so the keyboard can launch without shipping
+# the large optional framework.
 IME="$APP/PlugIns/KurukuruIMEExtension.appex"
 test -d "$IME"
-
-LLAMA_FRAMEWORK="$(
-  find "$BUILD_DIR/DerivedData/SourcePackages/artifacts" \
-    -type d -name 'llama.framework' -path '*ios-arm64*' -print -quit 2>/dev/null || true
-)"
-if test -z "$LLAMA_FRAMEWORK"; then
-  LLAMA_FRAMEWORK="$(
-    find "$BUILD_DIR/DerivedData/SourcePackages/artifacts" \
-      -type d -name 'llama.framework' -print -quit 2>/dev/null || true
-  )"
-fi
-if test -z "$LLAMA_FRAMEWORK" || ! test -d "$LLAMA_FRAMEWORK"; then
-  echo "llama.framework required by KurukuruIMEExtension was not found" >&2
-  exit 1
-fi
-
-mkdir -p "$IME/Frameworks"
-rm -rf "$IME/Frameworks/llama.framework"
-ditto "$LLAMA_FRAMEWORK" "$IME/Frameworks/llama.framework"
-
-# This artifact is intentionally unsigned. Remove any upstream signature so
-# SideStore/AltStore/etc. can re-sign the complete nested bundle consistently.
-codesign --remove-signature "$IME/Frameworks/llama.framework" >/dev/null 2>&1 || true
-rm -rf "$IME/Frameworks/llama.framework/_CodeSignature"
-rm -f "$IME/Frameworks/llama.framework/embedded.mobileprovision"
+python3 scripts/weak_link_llama.py "$IME/KurukuruIMEExtension"
 
 # Package only the real device archive, not source or simulator output.
 rm -rf "$BUILD_DIR/IPA"
@@ -77,10 +53,6 @@ for bundle in "$BUILD_DIR/IPA/Payload/KurukuruKeyboard.app/PlugIns/"*.appex "$BU
   check_unsigned_bundle "$bundle"
 done
 
-for framework in "$BUILD_DIR/IPA/Payload/KurukuruKeyboard.app/PlugIns/KurukuruIMEExtension.appex/Frameworks/"*.framework; do
-  test -d "$framework" || continue
-  check_unsigned_bundle "$framework"
-done
 
 (cd "$BUILD_DIR/IPA" && zip -qry ../GuruGuruKeyBoard-unsigned.ipa Payload)
 python3 scripts/validate_ipa.py "$BUILD_DIR/GuruGuruKeyBoard-unsigned.ipa" | tee "$BUILD_DIR/ipa-report.json"
