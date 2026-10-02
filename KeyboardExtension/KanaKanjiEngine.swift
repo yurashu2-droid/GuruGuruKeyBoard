@@ -33,8 +33,15 @@ final class KanaKanjiEngine {
         let result = converter.requestCandidates(composing, options: options)
         var seen = Set<String>()
         // The MVP commits a whole reading, not a first-clause prefix.
+        // Ask ComposingText to consume the count: it can be an input count,
+        // a displayed-surface count, or a composite of both.
         var values = result.mainResults
-            .filter { $0.correspondingCount == composing.input.count }
+            .filter { candidate in
+                guard candidate.inputable else { return false }
+                var remaining = composing
+                remaining.prefixComplete(composingCount: candidate.composingCount)
+                return remaining.isEmpty
+            }
             .map(\.text)
             .filter { !$0.isEmpty && $0 != reading && seen.insert($0).inserted }
             .prefix(11)
