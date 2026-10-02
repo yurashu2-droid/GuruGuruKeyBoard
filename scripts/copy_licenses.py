@@ -18,7 +18,10 @@ for prefix in [Path('.build/checkouts'), Path('build/DerivedData/SourcePackages/
                 continue
             destination = output / source.relative_to(prefix)
             destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, destination)
+            # SwiftPM checkout notices may be read-only. Preserve bytes, not mode.
+            if destination.exists():
+                destination.chmod(0o644)
+            shutil.copyfile(source, destination)
             count += 1
 if count == 0:
     raise SystemExit('No upstream license notices collected')

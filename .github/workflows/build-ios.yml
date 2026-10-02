@@ -28,7 +28,7 @@ jobs:
             HOMEBREW_NO_AUTO_UPDATE=1 brew install xcodegen
           fi
           xcodegen --version
-      - name: Test IPA validator
+      - name: Test IPA validator and license packaging
         run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
       - name: Test real Japanese conversion
         shell: bash
@@ -51,12 +51,22 @@ jobs:
             build/signing-report.txt
           if-no-files-found: error
           retention-days: 14
-      - name: Preserve packaged device build on failure
+      - name: Preserve native archive on packaging failure
+        if: failure()
+        shell: bash
+        run: |
+          app="$GITHUB_WORKSPACE/build/KurukuruKeyboard.xcarchive/Products/Applications/KurukuruKeyboard.app"
+          if test -d "$app"; then
+            (cd "$(dirname "$app")" && zip -qry "$GITHUB_WORKSPACE/build/ArchivedDeviceApp.zip" KurukuruKeyboard.app)
+          fi
+      - name: Upload recoverable device build
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: device-build-for-diagnosis
-          path: build/GuruGuruKeyBoard-unsigned.ipa
+          path: |
+            build/GuruGuruKeyBoard-unsigned.ipa
+            build/ArchivedDeviceApp.zip
           if-no-files-found: ignore
           retention-days: 3
       - name: Upload build diagnostics
