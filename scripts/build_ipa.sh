@@ -16,12 +16,19 @@ test -d "$APP"
 mkdir -p "$BUILD_DIR/IPA/Payload"
 ditto "$APP" "$BUILD_DIR/IPA/Payload/KurukuruKeyboard.app"
 python3 scripts/copy_licenses.py
+# ARM64 linker signatures are ad-hoc, not Apple distribution/development
+# identities. Do not treat a successful `codesign -d` as Apple signing.
+# Preserve the native executable. An installer must re-sign app AND extension.
+: > "$BUILD_DIR/signing-report.txt"
 for bundle in "$BUILD_DIR/IPA/Payload/KurukuruKeyboard.app/PlugIns/"*.appex "$BUILD_DIR/IPA/Payload/KurukuruKeyboard.app"; do
-  if codesign -d "$bundle" >/dev/null 2>&1; then
-    codesign --remove-signature "$bundle"
+  info="$(codesign --display --verbose=4 "$bundle" 2>&1 || true)"
+  printf '%s\n%s\n\n' "$bundle" "$info" | tee -a "$BUILD_DIR/signing-report.txt"
+  if printf '%s\n' "$info" | grep -q '^Authority='; then
+    echo "Unexpected signing authority in unsigned build: $bundle" >&2
+    exit 1
   fi
-  if codesign -d "$bundle" >/dev/null 2>&1; then
-    echo "Unexpected signature remains: $bundle" >&2
+  if test -f "$bundle/embedded.mobileprovision"; then
+    echo "Unexpected provisioning profile: $bundle" >&2
     exit 1
   fi
 done

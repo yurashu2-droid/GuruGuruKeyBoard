@@ -37,7 +37,9 @@ jobs:
           swift test -c release 2>&1 | tee swift-tests.log
       - name: Archive device build and package IPA
         shell: bash
-        run: bash scripts/build_ipa.sh
+        run: |
+          set -euo pipefail
+          bash scripts/build_ipa.sh 2>&1 | tee packaging.log
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
@@ -46,8 +48,17 @@ jobs:
             build/GuruGuruKeyBoard-unsigned.ipa
             build/ipa-report.json
             build/SHA256SUMS.txt
+            build/signing-report.txt
           if-no-files-found: error
           retention-days: 14
+      - name: Preserve packaged device build on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: device-build-for-diagnosis
+          path: build/GuruGuruKeyBoard-unsigned.ipa
+          if-no-files-found: ignore
+          retention-days: 3
       - name: Upload build diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -55,7 +66,9 @@ jobs:
           name: build-diagnostics
           path: |
             swift-tests.log
+            packaging.log
             build/xcodebuild.log
+            build/signing-report.txt
             Package.resolved
             KurukuruKeyboard.xcodeproj/project.pbxproj
             KurukuruKeyboard.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
