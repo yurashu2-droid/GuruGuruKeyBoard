@@ -2,7 +2,11 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var testText = ""
-    private let rows = [Array("あいうえおかきくけこさしすせそ").map(String.init), Array("たちつてとなにぬねのはひふへほ").map(String.init), Array("まみむめもやゆよらりるれろわをん").map(String.init)]
+    private let rows: [[String]] = [
+        ["あ","い","う","え","お","か","き","く","け","こ","さ","し","す","せ","そ"],
+        ["た","ち","つ","て","と","な","に","ぬ","ね","の","は","ひ","ふ","へ","ほ"],
+        ["ま","み","む","め","も","や","ゆ","よ","ら","り","る","れ","ろ","わ","を","ん"]
+    ]
     var body: some View {
         NavigationStack {
             ScrollView {
