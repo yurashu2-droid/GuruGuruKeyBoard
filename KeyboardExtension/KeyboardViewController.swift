@@ -5,13 +5,16 @@ import SwiftUI
 final class KeyboardViewController: UIInputViewController {
     private let model = KeyboardModel()
     private let engine = KanaKanjiEngine()
+    private var keyboardHeightConstraint: NSLayoutConstraint?
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
+        inputView?.allowsSelfSizing = true
 
         let keyboard = KurukuruKeyboardView(
             model: model,
+            showGlobe: needsInputModeSwitchKey,
             onKey: { [weak self] key in self?.handle(key) },
             onNextKeyboard: { [weak self] in
                 guard let self else { return }
@@ -33,9 +36,18 @@ final class KeyboardViewController: UIInputViewController {
         ])
         host.didMove(toParent: self)
 
-        let height = view.heightAnchor.constraint(equalToConstant: 302)
+        let height = view.heightAnchor.constraint(equalToConstant: 340)
         height.priority = .defaultHigh
         height.isActive = true
+        keyboardHeightConstraint = height
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        let target: CGFloat = traitCollection.verticalSizeClass == .compact ? 238 : 340
+        if keyboardHeightConstraint?.constant != target {
+            keyboardHeightConstraint?.constant = target
+        }
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -44,7 +56,6 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     override func textWillChange(_ textInput: (any UITextInput)?) {
-        // Do not carry pending text across changes initiated by a host app.
         clearComposition()
     }
 
@@ -63,11 +74,6 @@ final class KeyboardViewController: UIInputViewController {
         case .modeToggle:
             commitRawCompositionIfNeeded()
             model.inputMode = model.inputMode == .kana ? .latin : .kana
-        case .microphone:
-            // A third-party keyboard cannot start system dictation. Preserve any
-            // pending reading, then switch away so Apple's keyboard can expose it.
-            commitRawCompositionIfNeeded()
-            advanceToNextInputMode()
         case .dakuten:
             transformLast(using: Self.dakutenMap)
         case .handakuten:

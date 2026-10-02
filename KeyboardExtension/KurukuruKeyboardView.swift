@@ -6,7 +6,6 @@ enum FlowKey: Hashable {
     case space
     case returnKey
     case modeToggle
-    case microphone
     case dakuten
     case handakuten
     case smallKana
@@ -20,7 +19,6 @@ enum FlowKey: Hashable {
         case .space: return "空白"
         case .returnKey: return "↵"
         case .modeToggle: return "切替"
-        case .microphone: return "🎤"
         case .dakuten: return "゛"
         case .handakuten: return "゜"
         case .smallKana: return "小"
@@ -32,8 +30,11 @@ enum FlowKey: Hashable {
 
 struct KurukuruKeyboardView: View {
     @ObservedObject var model: KeyboardModel
+    let showGlobe: Bool
     let onKey: (FlowKey) -> Void
     let onNextKeyboard: () -> Void
+
+    private let speed: CGFloat = 122
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -51,8 +52,7 @@ struct KurukuruKeyboardView: View {
                 ForEach(0..<4, id: \.self) { index in
                     VerticalConveyorColumn(
                         keys: model.columns[index],
-                        phase: CGFloat(index) * 137,
-                        speed: 47,
+                        speed: speed,
                         mode: model.inputMode,
                         onTap: onKey
                     )
@@ -60,27 +60,28 @@ struct KurukuruKeyboardView: View {
             }
             .padding(6)
 
-            Button(action: onNextKeyboard) {
-                Image(systemName: "globe")
-                    .font(.system(size: 19, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 46, height: 46)
-                    .background(.black.opacity(0.82))
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(.white.opacity(0.28), lineWidth: 1)
-                    )
+            if showGlobe {
+                Button(action: onNextKeyboard) {
+                    Image(systemName: "globe")
+                        .font(.system(size: 19, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 46, height: 46)
+                        .background(.black.opacity(0.84))
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(.white.opacity(0.28), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .padding(9)
             }
-            .buttonStyle(.plain)
-            .padding(9)
         }
     }
 }
 
 private struct VerticalConveyorColumn: View {
     let keys: [FlowKey]
-    let phase: CGFloat
     let speed: CGFloat
     let mode: KeyboardModel.InputMode
     let onTap: (FlowKey) -> Void
@@ -93,14 +94,12 @@ private struct VerticalConveyorColumn: View {
             TimelineView(.animation) { context in
                 let cycleHeight = max(CGFloat(keys.count) * (keyHeight + spacing), 1)
                 let travel = (
-                    CGFloat(context.date.timeIntervalSinceReferenceDate) * speed + phase
+                    CGFloat(context.date.timeIntervalSinceReferenceDate) * speed
                 ).truncatingRemainder(dividingBy: cycleHeight)
-                let y = -cycleHeight + travel
 
                 VStack(spacing: spacing) {
                     ForEach(0..<(keys.count * 3), id: \.self) { index in
                         let key = keys[index % keys.count]
-
                         Button {
                             onTap(key)
                         } label: {
@@ -125,7 +124,7 @@ private struct VerticalConveyorColumn: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .offset(y: y)
+                .offset(y: -cycleHeight + travel)
                 .frame(width: geometry.size.width)
             }
         }
@@ -133,15 +132,12 @@ private struct VerticalConveyorColumn: View {
     }
 
     private func displayLabel(for key: FlowKey) -> String {
-        if key == .modeToggle {
-            return mode == .kana ? "ABC" : "かな"
-        }
-        return key.label
+        key == .modeToggle ? (mode == .kana ? "ABC" : "かな") : key.label
     }
 
     private func background(for key: FlowKey) -> Color {
         switch key {
-        case .space, .returnKey, .backspace, .modeToggle, .microphone, .convert:
+        case .space, .returnKey, .backspace, .modeToggle, .convert:
             return .white.opacity(0.16)
         default:
             return .white.opacity(0.095)

@@ -4,13 +4,16 @@ import SwiftUI
 @MainActor
 final class KeyboardViewController: UIInputViewController {
     private let model = VerticalKeyboardModel()
+    private var keyboardHeightConstraint: NSLayoutConstraint?
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
+        inputView?.allowsSelfSizing = true
 
         let keyboard = VerticalKeyboardView(
             model: model,
+            showGlobe: needsInputModeSwitchKey,
             onKey: { [weak self] key in self?.handle(key) },
             onNextKeyboard: { [weak self] in self?.advanceToNextInputMode() }
         )
@@ -28,9 +31,18 @@ final class KeyboardViewController: UIInputViewController {
         ])
         host.didMove(toParent: self)
 
-        let height = view.heightAnchor.constraint(equalToConstant: 302)
+        let height = view.heightAnchor.constraint(equalToConstant: 340)
         height.priority = .defaultHigh
         height.isActive = true
+        keyboardHeightConstraint = height
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        let target: CGFloat = traitCollection.verticalSizeClass == .compact ? 238 : 340
+        if keyboardHeightConstraint?.constant != target {
+            keyboardHeightConstraint?.constant = target
+        }
     }
 
     private func handle(_ key: FlowKey) {
@@ -45,10 +57,6 @@ final class KeyboardViewController: UIInputViewController {
             textDocumentProxy.insertText("\n")
         case .modeToggle:
             model.inputMode = model.inputMode == .kana ? .latin : .kana
-        case .microphone:
-            // Third-party keyboard extensions cannot start system dictation.
-            // Move to the next keyboard so the user can use Apple's dictation.
-            advanceToNextInputMode()
         case .dakuten:
             textDocumentProxy.insertText("゛")
         case .handakuten:
@@ -69,35 +77,32 @@ private final class VerticalKeyboardModel: ObservableObject {
     @Published var inputMode: InputMode = .kana
 
     var columns: [[FlowKey]] {
-        Self.distribute(inputMode == .kana ? Self.kanaKeys : Self.latinKeys)
+        inputMode == .kana ? Self.kanaColumns : Self.latinColumns
     }
 
-    private static let kanaKeys: [FlowKey] = [
-        "あ","い","う","え","お","か","き","く","け","こ",
-        "さ","し","す","せ","そ","た","ち","つ","て","と",
-        "な","に","ぬ","ね","の","は","ひ","ふ","へ","ほ",
-        "ま","み","む","め","も","や","ゆ","よ",
-        "ら","り","る","れ","ろ","わ","を","ん"
-    ].map(FlowKey.text) + [
-        .punctuation("ー"), .punctuation("、"), .punctuation("。"),
-        .dakuten, .handakuten, .smallKana, .convert,
-        .space, .returnKey, .backspace, .modeToggle, .microphone
+    // Predictable layout: each column owns a contiguous chunk of the alphabet.
+    // All columns move at the same speed and phase, so rows stay visually aligned.
+    private static let kanaColumns: [[FlowKey]] = [
+        ["あ","い","う","え","お","か","き","く","け","こ","さ","し","す","せ","そ"].map(FlowKey.text),
+        ["た","ち","つ","て","と","な","に","ぬ","ね","の","は","ひ","ふ","へ","ほ"].map(FlowKey.text),
+        ["ま","み","む","め","も","や","ゆ","よ","ら","り","る","れ","ろ","わ","を"].map(FlowKey.text),
+        [
+            .text("ん"), .punctuation("ー"), .punctuation("、"), .punctuation("。"),
+            .dakuten, .handakuten, .smallKana, .convert,
+            .space, .backspace, .space, .returnKey, .modeToggle,
+            .punctuation("？"), .punctuation("！")
+        ]
     ]
 
-    private static let latinKeys: [FlowKey] = Array("abcdefghijklmnopqrstuvwxyz").map {
-        .text(String($0))
-    } + [
-        .text(","), .text("."), .text("-"),
-        .space, .returnKey, .backspace, .modeToggle, .microphone
+    private static let latinColumns: [[FlowKey]] = [
+        Array("abcdefg").map { .text(String($0)) },
+        Array("hijklmn").map { .text(String($0)) },
+        Array("opqrstu").map { .text(String($0)) },
+        Array("vwxyz").map { .text(String($0)) } + [
+            .text(","), .text("."), .text("-"),
+            .space, .backspace, .space, .returnKey, .modeToggle
+        ]
     ]
-
-    private static func distribute(_ keys: [FlowKey]) -> [[FlowKey]] {
-        var columns = Array(repeating: [FlowKey](), count: 4)
-        for (index, key) in keys.enumerated() {
-            columns[index % 4].append(key)
-        }
-        return columns
-    }
 }
 
 private enum FlowKey: Hashable {
@@ -106,7 +111,6 @@ private enum FlowKey: Hashable {
     case space
     case returnKey
     case modeToggle
-    case microphone
     case dakuten
     case handakuten
     case smallKana
@@ -120,7 +124,6 @@ private enum FlowKey: Hashable {
         case .space: return "空白"
         case .returnKey: return "↵"
         case .modeToggle: return "切替"
-        case .microphone: return "🎤"
         case .dakuten: return "゛"
         case .handakuten: return "゜"
         case .smallKana: return "小"
@@ -132,8 +135,11 @@ private enum FlowKey: Hashable {
 
 private struct VerticalKeyboardView: View {
     @ObservedObject var model: VerticalKeyboardModel
+    let showGlobe: Bool
     let onKey: (FlowKey) -> Void
     let onNextKeyboard: () -> Void
+
+    private let speed: CGFloat = 122
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -151,8 +157,7 @@ private struct VerticalKeyboardView: View {
                 ForEach(0..<4, id: \.self) { index in
                     VerticalConveyorColumn(
                         keys: model.columns[index],
-                        phase: CGFloat(index) * 137,
-                        speed: 47,
+                        speed: speed,
                         mode: model.inputMode,
                         onTap: onKey
                     )
@@ -160,27 +165,30 @@ private struct VerticalKeyboardView: View {
             }
             .padding(6)
 
-            Button(action: onNextKeyboard) {
-                Image(systemName: "globe")
-                    .font(.system(size: 19, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 46, height: 46)
-                    .background(.black.opacity(0.82))
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(.white.opacity(0.28), lineWidth: 1)
-                    )
+            // Face ID iPhones normally provide the globe/mic system controls
+            // below the extension. Only provide our own globe if iOS says it is needed.
+            if showGlobe {
+                Button(action: onNextKeyboard) {
+                    Image(systemName: "globe")
+                        .font(.system(size: 19, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 46, height: 46)
+                        .background(.black.opacity(0.84))
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(.white.opacity(0.28), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .padding(9)
             }
-            .buttonStyle(.plain)
-            .padding(9)
         }
     }
 }
 
 private struct VerticalConveyorColumn: View {
     let keys: [FlowKey]
-    let phase: CGFloat
     let speed: CGFloat
     let mode: VerticalKeyboardModel.InputMode
     let onTap: (FlowKey) -> Void
@@ -193,15 +201,14 @@ private struct VerticalConveyorColumn: View {
             TimelineView(.animation) { context in
                 let cycleHeight = max(CGFloat(keys.count) * (keyHeight + spacing), 1)
                 let travel = (
-                    CGFloat(context.date.timeIntervalSinceReferenceDate) * speed + phase
+                    CGFloat(context.date.timeIntervalSinceReferenceDate) * speed
                 ).truncatingRemainder(dividingBy: cycleHeight)
-                let y = -cycleHeight + travel
 
                 VStack(spacing: spacing) {
                     ForEach(0..<(keys.count * 3), id: \.self) { index in
                         let key = keys[index % keys.count]
                         Button {
-                            onTap(resolved(key))
+                            onTap(key)
                         } label: {
                             Text(displayLabel(for: key))
                                 .font(.system(
@@ -224,7 +231,7 @@ private struct VerticalConveyorColumn: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .offset(y: y)
+                .offset(y: -cycleHeight + travel)
                 .frame(width: geometry.size.width)
             }
         }
@@ -232,19 +239,12 @@ private struct VerticalConveyorColumn: View {
     }
 
     private func displayLabel(for key: FlowKey) -> String {
-        if key == .modeToggle {
-            return mode == .kana ? "ABC" : "かな"
-        }
-        return key.label
-    }
-
-    private func resolved(_ key: FlowKey) -> FlowKey {
-        key
+        key == .modeToggle ? (mode == .kana ? "ABC" : "かな") : key.label
     }
 
     private func background(for key: FlowKey) -> Color {
         switch key {
-        case .space, .returnKey, .backspace, .modeToggle, .microphone, .convert:
+        case .space, .returnKey, .backspace, .modeToggle, .convert:
             return .white.opacity(0.16)
         default:
             return .white.opacity(0.095)
