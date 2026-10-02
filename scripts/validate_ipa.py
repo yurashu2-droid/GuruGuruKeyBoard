@@ -78,10 +78,23 @@ def inspect_ipa(path: Path) -> dict:
                 and archive.getinfo(n).file_size > 0
             ]
 
+            llama_framework = False
+            if ext_bundle_id.endswith('.ime'):
+                llama_binary = extroot + 'Frameworks/llama.framework/llama'
+                if llama_binary not in names:
+                    raise ValueError('IME keyboard is missing llama.framework required by dyld')
+                data = archive.read(llama_binary)
+                if len(data) < 32 or data[:4] != b'\xcf\xfa\xed\xfe':
+                    raise ValueError('llama.framework is not a thin 64-bit Mach-O')
+                if struct.unpack_from('<I', data, 4)[0] != 0x0100000c:
+                    raise ValueError('llama.framework is not ARM64')
+                llama_framework = True
+
             keyboards.append({
                 'bundle_id': ext_bundle_id,
                 'display_name': props.get('CFBundleDisplayName'),
-                'dictionary_files': len(dictionaries)
+                'dictionary_files': len(dictionaries),
+                'llama_framework': llama_framework
             })
 
         if not keyboards:
