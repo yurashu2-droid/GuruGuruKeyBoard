@@ -1,157 +1,150 @@
 import SwiftUI
-import Combine
 
-struct KurukuruKeyboardView: View {
-    @ObservedObject var model: KeyboardModel
-    let onCharacter: (String) -> Void
-    let onBackspace: () -> Void
-    let onSpace: () -> Void
-    let onReturn: () -> Void
-    let onCandidate: (String) -> Void
-    let onNextKeyboard: () -> Void
-    let onDakuten: () -> Void
-    let onHandakuten: () -> Void
-    let onSmallKana: () -> Void
-    let onPunctuation: (String) -> Void
-    let onModeChange: () -> Void
-    @State private var distance: CGFloat = 0
-    @State private var lastTick: Date?
-    private let timer = Timer.publish(every: 1.0 / 30.0, on: .main, in: .common).autoconnect()
+enum FlowKey: Hashable {
+    case text(String)
+    case backspace
+    case space
+    case returnKey
+    case modeToggle
+    case microphone
+    case dakuten
+    case handakuten
+    case smallKana
+    case convert
+    case punctuation(String)
 
-    var body: some View {
-        VStack(spacing: 6) {
-            Text(model.composition.isEmpty ? "文字が流れてきます" : model.composition)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white.opacity(0.8))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .lineLimit(1)
-            topStrip
-            ForEach(model.rows.indices, id: \.self) { index in
-                ConveyorRow(keys: model.rows[index], distance: distance * (index == 1 ? 0.88 : 1), direction: index == 1 ? -1 : 1, phase: CGFloat(index) * 86, onTap: onCharacter)
-            }
-            HStack(spacing: 6) {
-                MiniKey(title: "゛", action: onDakuten)
-                MiniKey(title: "゜", action: onHandakuten)
-                MiniKey(title: "小", action: onSmallKana)
-                MiniKey(title: "ー") { onCharacter("ー") }
-                MiniKey(title: "、") { onPunctuation("、") }
-                MiniKey(title: "。") { onPunctuation("。") }
-            }.frame(height: 31)
-            controlStrip
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 6)
-        .background(LinearGradient(colors: [Color(red: 0.035, green: 0.04, blue: 0.05), Color(red: 0.075, green: 0.08, blue: 0.10)], startPoint: .top, endPoint: .bottom))
-        .onReceive(timer) { now in
-            let delta = min(max(now.timeIntervalSince(lastTick ?? now), 0), 0.1)
-            lastTick = now
-            if !model.isPaused { distance += CGFloat(delta) * model.speed }
-        }
-        .onDisappear { lastTick = nil }
-    }
-    private var topStrip: some View {
-        HStack(spacing: 6) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    if model.candidates.isEmpty {
-                        Text("かな → 候補をタップして確定")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.6))
-                            .padding(.horizontal, 8)
-                    }
-                    ForEach(model.candidates, id: \.self) { candidate in
-                        Button(candidate) { onCandidate(candidate) }
-                            .buttonStyle(CandidateButtonStyle())
-                    }
-                }
-            }.frame(height: 34)
-            Button { model.isPaused.toggle() } label: {
-                Image(systemName: model.isPaused ? "play.fill" : "pause.fill").frame(width: 34, height: 34)
-            }.buttonStyle(ToolButtonStyle())
-            Button { model.cycleSpeed() } label: {
-                Text(model.speedLabel).font(.system(size: 11, weight: .bold)).frame(width: 40, height: 34)
-            }.buttonStyle(ToolButtonStyle())
-        }
-    }
-    private var controlStrip: some View {
-        HStack(spacing: 6) {
-            Button(action: onNextKeyboard) {
-                Image(systemName: "globe").frame(width: 36, height: 42)
-            }.buttonStyle(ControlButtonStyle())
-            Button(action: onModeChange) {
-                Text(model.inputMode == .kana ? "ABC" : "かな").font(.system(size: 12, weight: .bold)).frame(width: 44, height: 42)
-            }.buttonStyle(ControlButtonStyle())
-            Button(action: onSpace) {
-                Text(model.composition.isEmpty ? "空白" : "変換 / 確定")
-                    .font(.system(size: 12, weight: .semibold))
-                    .frame(maxWidth: .infinity).frame(height: 42)
-            }.buttonStyle(ControlButtonStyle())
-            Button(action: onBackspace) {
-                Image(systemName: "delete.left").frame(width: 44, height: 42)
-            }.buttonStyle(ControlButtonStyle())
-            Button(action: onReturn) {
-                Image(systemName: "return").frame(width: 42, height: 42)
-            }.buttonStyle(ControlButtonStyle())
+    var label: String {
+        switch self {
+        case .text(let text): return text
+        case .backspace: return "⌫"
+        case .space: return "空白"
+        case .returnKey: return "↵"
+        case .modeToggle: return "切替"
+        case .microphone: return "🎤"
+        case .dakuten: return "゛"
+        case .handakuten: return "゜"
+        case .smallKana: return "小"
+        case .convert: return "変換"
+        case .punctuation(let text): return text
         }
     }
 }
 
-private struct ConveyorRow: View {
-    let keys: [String]
-    let distance: CGFloat
-    let direction: CGFloat
-    let phase: CGFloat
-    let onTap: (String) -> Void
-    private let keyWidth: CGFloat = 44
-    private let spacing: CGFloat = 8
+struct KurukuruKeyboardView: View {
+    @ObservedObject var model: KeyboardModel
+    let onKey: (FlowKey) -> Void
+    let onNextKeyboard: () -> Void
+
     var body: some View {
-        GeometryReader { _ in
-            let rowWidth = CGFloat(keys.count) * (keyWidth + spacing)
-            let travel = (distance + phase).truncatingRemainder(dividingBy: rowWidth)
-            let x = direction > 0 ? -rowWidth + travel : -travel
-            HStack(spacing: spacing) {
-                ForEach(0..<(keys.count * 3), id: \.self) { index in
-                    let key = keys[index % keys.count]
-                    Button { onTap(key) } label: {
-                        Text(key)
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-                            .frame(width: keyWidth, height: 43)
-                            .background(RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.105)))
-                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(.white.opacity(0.16), lineWidth: 1))
-                    }.buttonStyle(.plain)
+        ZStack(alignment: .bottomLeading) {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.025, green: 0.03, blue: 0.04),
+                    Color(red: 0.075, green: 0.08, blue: 0.10)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+
+            HStack(spacing: 7) {
+                ForEach(0..<4, id: \.self) { index in
+                    VerticalConveyorColumn(
+                        keys: model.columns[index],
+                        phase: CGFloat(index) * 137,
+                        speed: 47,
+                        mode: model.inputMode,
+                        onTap: onKey
+                    )
                 }
-            }.offset(x: x)
+            }
+            .padding(6)
+
+            Button(action: onNextKeyboard) {
+                Image(systemName: "globe")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 46, height: 46)
+                    .background(.black.opacity(0.82))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(.white.opacity(0.28), lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+            .padding(9)
         }
-        .frame(height: 43)
+    }
+}
+
+private struct VerticalConveyorColumn: View {
+    let keys: [FlowKey]
+    let phase: CGFloat
+    let speed: CGFloat
+    let mode: KeyboardModel.InputMode
+    let onTap: (FlowKey) -> Void
+
+    private let keyHeight: CGFloat = 44
+    private let spacing: CGFloat = 7
+
+    var body: some View {
+        GeometryReader { geometry in
+            TimelineView(.animation) { context in
+                let cycleHeight = max(CGFloat(keys.count) * (keyHeight + spacing), 1)
+                let travel = (
+                    CGFloat(context.date.timeIntervalSinceReferenceDate) * speed + phase
+                ).truncatingRemainder(dividingBy: cycleHeight)
+                let y = -cycleHeight + travel
+
+                VStack(spacing: spacing) {
+                    ForEach(0..<(keys.count * 3), id: \.self) { index in
+                        let key = keys[index % keys.count]
+
+                        Button {
+                            onTap(key)
+                        } label: {
+                            Text(displayLabel(for: key))
+                                .font(.system(
+                                    size: key.label.count > 1 ? 13 : 19,
+                                    weight: .bold,
+                                    design: .rounded
+                                ))
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: keyHeight)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 13)
+                                        .fill(background(for: key))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 13)
+                                        .stroke(.white.opacity(0.15), lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .offset(y: y)
+                .frame(width: geometry.size.width)
+            }
+        }
         .clipped()
     }
-}
-private struct MiniKey: View {
-    let title: String
-    let action: () -> Void
-    var body: some View {
-        Button(action: action) {
-            Text(title).font(.system(size: 13, weight: .bold)).frame(maxWidth: .infinity).frame(height: 31)
-        }.buttonStyle(ToolButtonStyle())
+
+    private func displayLabel(for key: FlowKey) -> String {
+        if key == .modeToggle {
+            return mode == .kana ? "ABC" : "かな"
+        }
+        return key.label
     }
-}
-private struct CandidateButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label.font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
-            .padding(.horizontal, 13).frame(height: 34)
-            .background(RoundedRectangle(cornerRadius: 11).fill(.white.opacity(configuration.isPressed ? 0.22 : 0.10)))
-    }
-}
-private struct ToolButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label.foregroundStyle(.white.opacity(0.92))
-            .background(RoundedRectangle(cornerRadius: 10).fill(.white.opacity(configuration.isPressed ? 0.18 : 0.08)))
-    }
-}
-private struct ControlButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label.foregroundStyle(.white)
-            .background(RoundedRectangle(cornerRadius: 11).fill(.white.opacity(configuration.isPressed ? 0.22 : 0.12)))
+
+    private func background(for key: FlowKey) -> Color {
+        switch key {
+        case .space, .returnKey, .backspace, .modeToggle, .microphone, .convert:
+            return .white.opacity(0.16)
+        default:
+            return .white.opacity(0.095)
+        }
     }
 }

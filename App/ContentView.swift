@@ -16,7 +16,7 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         VariantRow(name: "くるくる Safe", detail: "固定UIKit。起動できる基準")
                         VariantRow(name: "くるくる Move", detail: "UIKit + CADisplayLink。文字が流れる本命")
-                        VariantRow(name: "くるくる SwiftUI", detail: "SwiftUIで文字が流れる。変換なし")
+                        VariantRow(name: "くるくる Vertical", detail: "4列の縦リール。全タイルが下方向に流れる")
                         VariantRow(name: "くるくる IME", detail: "SwiftUI + azooKeyかな漢字変換")
                     }
                     .padding()
@@ -38,7 +38,7 @@ struct ContentView: View {
                         .padding(8)
                         .overlay(RoundedRectangle(cornerRadius: 12).stroke(.gray.opacity(0.35)))
 
-                    Text("試作版 0.1.4 · 診断用マルチキーボード")
+                    Text("試作版 0.1.6 · 縦4列くるくる + IME")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
