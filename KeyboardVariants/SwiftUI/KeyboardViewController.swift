@@ -176,7 +176,7 @@ private struct DiagonalKeyboardView: View {
     @State private var startTime = Date()
 
     private let speed: CGFloat = 132
-    private let diagonalOffsets: [CGFloat] = [20, 0, -20]
+    private let diagonalOffsets: [CGFloat] = [0, -51, -102]
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {

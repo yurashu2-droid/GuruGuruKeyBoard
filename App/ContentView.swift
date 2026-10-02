@@ -38,7 +38,7 @@ struct ContentView: View {
                         .padding(8)
                         .overlay(RoundedRectangle(cornerRadius: 12).stroke(.gray.opacity(0.35)))
 
-                    Text("試作版 0.1.8 · 斜めQWERTY / 斜めかな + IME")
+                    Text("試作版 0.1.9 · 1キー段差QWERTY / 斜めかな + IME")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

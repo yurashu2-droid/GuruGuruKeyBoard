@@ -28,7 +28,7 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: くるくるキーボード
-        CFBundleShortVersionString: "0.1.8"
+        CFBundleShortVersionString: "0.1.9"
         CFBundleVersion: "1"
         LSRequiresIPhoneOS: true
         UILaunchScreen: {}
@@ -62,7 +62,7 @@ targets:
       path: GeneratedInfo/Safe-Info.plist
       properties:
         CFBundleDisplayName: くるくる Safe
-        CFBundleShortVersionString: "0.1.8"
+        CFBundleShortVersionString: "0.1.9"
         CFBundleVersion: "1"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.keyboard-service
@@ -88,7 +88,7 @@ targets:
       path: GeneratedInfo/Move-Info.plist
       properties:
         CFBundleDisplayName: くるくる Move
-        CFBundleShortVersionString: "0.1.8"
+        CFBundleShortVersionString: "0.1.9"
         CFBundleVersion: "1"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.keyboard-service
@@ -114,7 +114,7 @@ targets:
       path: GeneratedInfo/SwiftUI-Info.plist
       properties:
         CFBundleDisplayName: くるくる Vertical
-        CFBundleShortVersionString: "0.1.8"
+        CFBundleShortVersionString: "0.1.9"
         CFBundleVersion: "1"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.keyboard-service
@@ -140,7 +140,7 @@ targets:
       path: GeneratedInfo/IME-Info.plist
       properties:
         CFBundleDisplayName: くるくる IME
-        CFBundleShortVersionString: "0.1.8"
+        CFBundleShortVersionString: "0.1.9"
         CFBundleVersion: "1"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.keyboard-service
