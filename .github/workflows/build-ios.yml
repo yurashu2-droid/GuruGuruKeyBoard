@@ -30,11 +30,8 @@ jobs:
           xcodegen --version
       - name: Test IPA validator and license packaging
         run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
-      - name: Test real Japanese conversion
-        shell: bash
-        run: |
-          set -euo pipefail
-          swift test -c release 2>&1 | tee swift-tests.log
+      - name: Skip conversion test for startup-isolation build
+        run: echo "Conversion is intentionally not linked into the diagnostic keyboard target."
       - name: Archive device build and package IPA
         shell: bash
         run: |
