@@ -3,7 +3,7 @@ import SwiftUI
 
 @MainActor
 final class KeyboardViewController: UIInputViewController {
-    private let model = VerticalKeyboardModel()
+    private let model = DiagonalKeyboardModel()
     private var keyboardHeightConstraint: NSLayoutConstraint?
 
     override func viewDidLoad() {
@@ -11,7 +11,7 @@ final class KeyboardViewController: UIInputViewController {
         view.backgroundColor = .clear
         inputView?.allowsSelfSizing = true
 
-        let keyboard = VerticalKeyboardView(
+        let keyboard = DiagonalKeyboardView(
             model: model,
             showGlobe: needsInputModeSwitchKey,
             onKey: { [weak self] key in self?.handle(key) },
@@ -72,36 +72,70 @@ final class KeyboardViewController: UIInputViewController {
 }
 
 @MainActor
-private final class VerticalKeyboardModel: ObservableObject {
+private final class DiagonalKeyboardModel: ObservableObject {
     enum InputMode { case kana, latin }
+
     @Published var inputMode: InputMode = .kana
 
-    var columns: [[FlowKey]] {
-        inputMode == .kana ? Self.kanaColumns : Self.latinColumns
+    var characterColumns: [[FlowKey]] {
+        inputMode == .kana ? Self.kanaCharacterColumns : Self.latinCharacterColumns
     }
 
-    // Predictable layout: each column owns a contiguous chunk of the alphabet.
-    // All columns move at the same speed and phase, so rows stay visually aligned.
-    private static let kanaColumns: [[FlowKey]] = [
-        ["あ","い","う","え","お","か","き","く","け","こ","さ","し","す","せ","そ"].map(FlowKey.text),
-        ["た","ち","つ","て","と","な","に","ぬ","ね","の","は","ひ","ふ","へ","ほ"].map(FlowKey.text),
-        ["ま","み","む","め","も","や","ゆ","よ","ら","り","る","れ","ろ","わ","を"].map(FlowKey.text),
-        [
-            .text("ん"), .punctuation("ー"), .punctuation("、"), .punctuation("。"),
-            .dakuten, .handakuten, .smallKana, .convert,
-            .space, .backspace, .space, .returnKey, .modeToggle,
-            .punctuation("？"), .punctuation("！")
-        ]
+    var utilityColumn: [FlowKey] {
+        inputMode == .kana ? Self.kanaUtilityColumn : Self.latinUtilityColumn
+    }
+
+    // Read from top to bottom. The final rows are what appear nearest the
+    // bottom at launch, so kana starts with:
+    //   ま や ら
+    //    か た は
+    //     あ さ な
+    //
+    // The three character lanes are vertically staggered in the view.
+    private static let kanaCharacterColumns: [[FlowKey]] = [
+        ["わ","も","こ","お","め","け","え","む","く","う","み","き","い","ま","か","あ"].map(FlowKey.text),
+        ["を","","と","そ","","て","せ","ゆ","つ","す","","ち","し","や","た","さ"].map(FlowKey.text),
+        ["ん","ろ","ほ","の","れ","へ","ね","る","ふ","ぬ","り","ひ","に","ら","は","な"].map(FlowKey.text)
     ]
 
-    private static let latinColumns: [[FlowKey]] = [
-        Array("abcdefg").map { .text(String($0)) },
-        Array("hijklmn").map { .text(String($0)) },
-        Array("opqrstu").map { .text(String($0)) },
-        Array("vwxyz").map { .text(String($0)) } + [
-            .text(","), .text("."), .text("-"),
-            .space, .backspace, .space, .returnKey, .modeToggle
-        ]
+    // QWERTY rotated 90 degrees. At launch the bottom-most visible group is
+    // qaz, with q lower-left, a in the middle, and z upper-right.
+    // Above it come wsx, then edc, then rfv...
+    private static let latinCharacterColumns: [[FlowKey]] = [
+        ["p","o","i","u","y","t","r","e","w","q"].map(FlowKey.text),
+        ["","l","k","j","h","g","f","d","s","a"].map(FlowKey.text),
+        ["","","","m","n","b","v","c","x","z"].map(FlowKey.text)
+    ]
+
+    private static let kanaUtilityColumn: [FlowKey] = [
+        .punctuation("！"),
+        .punctuation("？"),
+        .punctuation("。"),
+        .punctuation("、"),
+        .punctuation("ー"),
+        .dakuten,
+        .handakuten,
+        .smallKana,
+        .convert,
+        .space,
+        .backspace,
+        .returnKey,
+        .modeToggle
+    ]
+
+    private static let latinUtilityColumn: [FlowKey] = [
+        .text("/"),
+        .text("@"),
+        .text("_"),
+        .text("-"),
+        .text("!"),
+        .text("?"),
+        .text("."),
+        .text(","),
+        .space,
+        .backspace,
+        .returnKey,
+        .modeToggle
     ]
 }
 
@@ -133,13 +167,16 @@ private enum FlowKey: Hashable {
     }
 }
 
-private struct VerticalKeyboardView: View {
-    @ObservedObject var model: VerticalKeyboardModel
+private struct DiagonalKeyboardView: View {
+    @ObservedObject var model: DiagonalKeyboardModel
     let showGlobe: Bool
     let onKey: (FlowKey) -> Void
     let onNextKeyboard: () -> Void
 
-    private let speed: CGFloat = 122
+    @State private var startTime = Date()
+
+    private let speed: CGFloat = 132
+    private let diagonalOffsets: [CGFloat] = [20, 0, -20]
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -154,19 +191,28 @@ private struct VerticalKeyboardView: View {
             .ignoresSafeArea()
 
             HStack(spacing: 7) {
-                ForEach(0..<4, id: \.self) { index in
-                    VerticalConveyorColumn(
-                        keys: model.columns[index],
+                ForEach(0..<3, id: \.self) { index in
+                    DiagonalConveyorColumn(
+                        keys: model.characterColumns[index],
                         speed: speed,
+                        laneYOffset: diagonalOffsets[index],
+                        startTime: startTime,
                         mode: model.inputMode,
                         onTap: onKey
                     )
                 }
+
+                DiagonalConveyorColumn(
+                    keys: model.utilityColumn,
+                    speed: speed,
+                    laneYOffset: 0,
+                    startTime: startTime,
+                    mode: model.inputMode,
+                    onTap: onKey
+                )
             }
             .padding(6)
 
-            // Face ID iPhones normally provide the globe/mic system controls
-            // below the extension. Only provide our own globe if iOS says it is needed.
             if showGlobe {
                 Button(action: onNextKeyboard) {
                     Image(systemName: "globe")
@@ -184,13 +230,18 @@ private struct VerticalKeyboardView: View {
                 .padding(9)
             }
         }
+        .onChange(of: model.inputMode) { _ in
+            startTime = Date()
+        }
     }
 }
 
-private struct VerticalConveyorColumn: View {
+private struct DiagonalConveyorColumn: View {
     let keys: [FlowKey]
     let speed: CGFloat
-    let mode: VerticalKeyboardModel.InputMode
+    let laneYOffset: CGFloat
+    let startTime: Date
+    let mode: DiagonalKeyboardModel.InputMode
     let onTap: (FlowKey) -> Void
 
     private let keyHeight: CGFloat = 44
@@ -199,39 +250,52 @@ private struct VerticalConveyorColumn: View {
     var body: some View {
         GeometryReader { geometry in
             TimelineView(.animation) { context in
-                let cycleHeight = max(CGFloat(keys.count) * (keyHeight + spacing), 1)
-                let travel = (
-                    CGFloat(context.date.timeIntervalSinceReferenceDate) * speed
-                ).truncatingRemainder(dividingBy: cycleHeight)
+                let stride = keyHeight + spacing
+                let cycleHeight = max(CGFloat(keys.count) * stride, 1)
+                let elapsed = max(context.date.timeIntervalSince(startTime), 0)
+                let travel = (CGFloat(elapsed) * speed)
+                    .truncatingRemainder(dividingBy: cycleHeight)
+
+                // Put the final item of the middle copy near the bottom at t=0.
+                let finalIndexInMiddleCopy = CGFloat(keys.count * 2 - 1)
+                let targetFinalTop = geometry.size.height - keyHeight - 10 + laneYOffset
+                let baseY = targetFinalTop - finalIndexInMiddleCopy * stride
 
                 VStack(spacing: spacing) {
                     ForEach(0..<(keys.count * 3), id: \.self) { index in
                         let key = keys[index % keys.count]
-                        Button {
-                            onTap(key)
-                        } label: {
-                            Text(displayLabel(for: key))
-                                .font(.system(
-                                    size: key.label.count > 1 ? 13 : 19,
-                                    weight: .bold,
-                                    design: .rounded
-                                ))
-                                .foregroundStyle(.white)
+
+                        if key.label.isEmpty {
+                            Color.clear
                                 .frame(maxWidth: .infinity)
                                 .frame(height: keyHeight)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 13)
-                                        .fill(background(for: key))
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 13)
-                                        .stroke(.white.opacity(0.15), lineWidth: 1)
-                                )
+                        } else {
+                            Button {
+                                onTap(key)
+                            } label: {
+                                Text(displayLabel(for: key))
+                                    .font(.system(
+                                        size: key.label.count > 1 ? 13 : 19,
+                                        weight: .bold,
+                                        design: .rounded
+                                    ))
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: keyHeight)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 13)
+                                            .fill(background(for: key))
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 13)
+                                            .stroke(.white.opacity(0.15), lineWidth: 1)
+                                    )
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
-                .offset(y: -cycleHeight + travel)
+                .offset(y: baseY + travel)
                 .frame(width: geometry.size.width)
             }
         }
@@ -245,7 +309,7 @@ private struct VerticalConveyorColumn: View {
     private func background(for key: FlowKey) -> Color {
         switch key {
         case .space, .returnKey, .backspace, .modeToggle, .convert:
-            return .white.opacity(0.16)
+            return .white.opacity(0.17)
         default:
             return .white.opacity(0.095)
         }

@@ -34,7 +34,10 @@ struct KurukuruKeyboardView: View {
     let onKey: (FlowKey) -> Void
     let onNextKeyboard: () -> Void
 
-    private let speed: CGFloat = 122
+    @State private var startTime = Date()
+
+    private let speed: CGFloat = 132
+    private let diagonalOffsets: [CGFloat] = [20, 0, -20]
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -49,14 +52,25 @@ struct KurukuruKeyboardView: View {
             .ignoresSafeArea()
 
             HStack(spacing: 7) {
-                ForEach(0..<4, id: \.self) { index in
-                    VerticalConveyorColumn(
-                        keys: model.columns[index],
+                ForEach(0..<3, id: \.self) { index in
+                    DiagonalConveyorColumn(
+                        keys: model.characterColumns[index],
                         speed: speed,
+                        laneYOffset: diagonalOffsets[index],
+                        startTime: startTime,
                         mode: model.inputMode,
                         onTap: onKey
                     )
                 }
+
+                DiagonalConveyorColumn(
+                    keys: model.utilityColumn,
+                    speed: speed,
+                    laneYOffset: 0,
+                    startTime: startTime,
+                    mode: model.inputMode,
+                    onTap: onKey
+                )
             }
             .padding(6)
 
@@ -77,12 +91,17 @@ struct KurukuruKeyboardView: View {
                 .padding(9)
             }
         }
+        .onChange(of: model.inputMode) { _ in
+            startTime = Date()
+        }
     }
 }
 
-private struct VerticalConveyorColumn: View {
+private struct DiagonalConveyorColumn: View {
     let keys: [FlowKey]
     let speed: CGFloat
+    let laneYOffset: CGFloat
+    let startTime: Date
     let mode: KeyboardModel.InputMode
     let onTap: (FlowKey) -> Void
 
@@ -92,39 +111,51 @@ private struct VerticalConveyorColumn: View {
     var body: some View {
         GeometryReader { geometry in
             TimelineView(.animation) { context in
-                let cycleHeight = max(CGFloat(keys.count) * (keyHeight + spacing), 1)
-                let travel = (
-                    CGFloat(context.date.timeIntervalSinceReferenceDate) * speed
-                ).truncatingRemainder(dividingBy: cycleHeight)
+                let stride = keyHeight + spacing
+                let cycleHeight = max(CGFloat(keys.count) * stride, 1)
+                let elapsed = max(context.date.timeIntervalSince(startTime), 0)
+                let travel = (CGFloat(elapsed) * speed)
+                    .truncatingRemainder(dividingBy: cycleHeight)
+
+                let finalIndexInMiddleCopy = CGFloat(keys.count * 2 - 1)
+                let targetFinalTop = geometry.size.height - keyHeight - 10 + laneYOffset
+                let baseY = targetFinalTop - finalIndexInMiddleCopy * stride
 
                 VStack(spacing: spacing) {
                     ForEach(0..<(keys.count * 3), id: \.self) { index in
                         let key = keys[index % keys.count]
-                        Button {
-                            onTap(key)
-                        } label: {
-                            Text(displayLabel(for: key))
-                                .font(.system(
-                                    size: key.label.count > 1 ? 13 : 19,
-                                    weight: .bold,
-                                    design: .rounded
-                                ))
-                                .foregroundStyle(.white)
+
+                        if key.label.isEmpty {
+                            Color.clear
                                 .frame(maxWidth: .infinity)
                                 .frame(height: keyHeight)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 13)
-                                        .fill(background(for: key))
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 13)
-                                        .stroke(.white.opacity(0.15), lineWidth: 1)
-                                )
+                        } else {
+                            Button {
+                                onTap(key)
+                            } label: {
+                                Text(displayLabel(for: key))
+                                    .font(.system(
+                                        size: key.label.count > 1 ? 13 : 19,
+                                        weight: .bold,
+                                        design: .rounded
+                                    ))
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: keyHeight)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 13)
+                                            .fill(background(for: key))
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 13)
+                                            .stroke(.white.opacity(0.15), lineWidth: 1)
+                                    )
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
-                .offset(y: -cycleHeight + travel)
+                .offset(y: baseY + travel)
                 .frame(width: geometry.size.width)
             }
         }
@@ -138,7 +169,7 @@ private struct VerticalConveyorColumn: View {
     private func background(for key: FlowKey) -> Color {
         switch key {
         case .space, .returnKey, .backspace, .modeToggle, .convert:
-            return .white.opacity(0.16)
+            return .white.opacity(0.17)
         default:
             return .white.opacity(0.095)
         }
