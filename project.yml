@@ -25,7 +25,7 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: くるくるキーボード
-        CFBundleShortVersionString: "0.1.1"
+        CFBundleShortVersionString: "0.1.2"
         CFBundleVersion: "1"
         LSRequiresIPhoneOS: true
         UILaunchScreen: {}
@@ -52,7 +52,7 @@ targets:
       path: KeyboardExtension/Info.plist
       properties:
         CFBundleDisplayName: くるくる
-        CFBundleShortVersionString: "0.1.1"
+        CFBundleShortVersionString: "0.1.2"
         CFBundleVersion: "1"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.keyboard-service
