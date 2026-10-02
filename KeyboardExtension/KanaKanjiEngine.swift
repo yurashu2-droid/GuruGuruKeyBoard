@@ -2,13 +2,19 @@ import Foundation
 import KanaKanjiConverterModuleWithDefaultDictionary
 
 /// Adapter for the pinned azooKey 0.11.2 API. No network or user learning.
+///
+/// Important: a custom keyboard extension has a tight memory budget. Keep both
+/// the converter and its dictionaries out of the extension launch path.
+/// azooKey itself lazily creates its converter for the same reason.
 @MainActor
 final class KanaKanjiEngine {
-    private let converter = KanaKanjiConverter.withDefaultDictionary()
-    private let options: ConvertRequestOptions
-    init() {
+    private var converterHasStarted = false
+
+    private lazy var converter = KanaKanjiConverter.withDefaultDictionary()
+
+    private lazy var options: ConvertRequestOptions = {
         let directory = FileManager.default.temporaryDirectory
-        options = ConvertRequestOptions(
+        return ConvertRequestOptions(
             N_best: 10,
             requireJapanesePrediction: true,
             requireEnglishPrediction: false,
@@ -23,15 +29,22 @@ final class KanaKanjiEngine {
             textReplacer: .withDefaultEmojiDictionary(),
             specialCandidateProviders: nil,
             zenzaiMode: .off,
-            metadata: .init(versionString: "GuruGuruKeyBoard 0.1.1")
+            metadata: .init(versionString: "GuruGuruKeyBoard 0.1.2")
         )
-    }
+    }()
+
     func candidates(for reading: String) -> [String] {
         guard !reading.isEmpty else { return [] }
+
+        // This is the first point at which loading the conversion dictionary is
+        // allowed. Selecting the keyboard must be able to render before this.
+        converterHasStarted = true
+
         var composing = ComposingText()
         composing.insertAtCursorPosition(reading, inputStyle: .direct)
         let result = converter.requestCandidates(composing, options: options)
         var seen = Set<String>()
+
         // The MVP commits a whole reading, not a first-clause prefix.
         // Ask ComposingText to consume the count: it can be an input count,
         // a displayed-surface count, or a composite of both.
@@ -49,5 +62,11 @@ final class KanaKanjiEngine {
         values.append(reading)
         return values
     }
-    func endComposition() { converter.stopComposition() }
+
+    func endComposition() {
+        // UIKit can call textWillChange while the keyboard is being activated.
+        // Do not accidentally initialize the converter from that lifecycle path.
+        guard converterHasStarted else { return }
+        converter.stopComposition()
+    }
 }
