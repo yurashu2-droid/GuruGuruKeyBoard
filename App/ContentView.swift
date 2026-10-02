@@ -1,4 +1,4 @@
-import SwiftUI
+// Build 0.1.9: full-key diagonal reel offsets.\nimport SwiftUI
 
 struct ContentView: View {
     @State private var testText = ""
