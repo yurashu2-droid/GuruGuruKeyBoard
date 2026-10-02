@@ -1,0 +1,11 @@
+.DS_Store
+.build/
+build/
+*.xcodeproj/
+.swiftpm/
+*.xcuserstate
+App/Info.plist
+KeyboardExtension/Info.plist
+__pycache__/
+.superpowers/
+*.log

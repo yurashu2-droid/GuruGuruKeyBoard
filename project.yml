@@ -1,0 +1,68 @@
+name: KurukuruKeyboard
+options:
+  bundleIdPrefix: com.yurashu2
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+packages:
+  AzooKeyKanaKanjiConverter:
+    url: https://github.com/azooKey/AzooKeyKanaKanjiConverter
+    exactVersion: "0.11.2"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+targets:
+  KurukuruKeyboard:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - App
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yurashu2.gurugurukeyboard
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: くるくるキーボード
+        CFBundleShortVersionString: "0.1.1"
+        CFBundleVersion: "1"
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    dependencies:
+      - target: KurukuruKeyboardExtension
+        embed: true
+    scheme: {}
+  KurukuruKeyboardExtension:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - KeyboardExtension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yurashu2.gurugurukeyboard.keyboard
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+    info:
+      path: KeyboardExtension/Info.plist
+      properties:
+        CFBundleDisplayName: くるくる
+        CFBundleShortVersionString: "0.1.1"
+        CFBundleVersion: "1"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.keyboard-service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).KeyboardViewController
+          NSExtensionAttributes:
+            PrimaryLanguage: ja-JP
+            IsASCIICapable: true
+            PrefersRightToLeft: false
+            RequestsOpenAccess: false
+    dependencies:
+      - package: AzooKeyKanaKanjiConverter
+        product: KanaKanjiConverterModuleWithDefaultDictionary
+    scheme: {}
