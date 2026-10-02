@@ -15,7 +15,7 @@ test -d "$APP"
 # Package only the real device archive, not source or simulator output.
 mkdir -p "$BUILD_DIR/IPA/Payload"
 ditto "$APP" "$BUILD_DIR/IPA/Payload/KurukuruKeyboard.app"
-python3 scripts/copy_licenses.py
+echo "SAFE startup build: no third-party runtime dependencies to license-copy."
 # ARM64 linker signatures are ad-hoc, not Apple distribution/development
 # identities. Do not treat a successful `codesign -d` as Apple signing.
 # Preserve the native executable. An installer must re-sign app AND extension.
@@ -33,5 +33,5 @@ for bundle in "$BUILD_DIR/IPA/Payload/KurukuruKeyboard.app/PlugIns/"*.appex "$BU
   fi
 done
 (cd "$BUILD_DIR/IPA" && zip -qry ../GuruGuruKeyBoard-unsigned.ipa Payload)
-python3 scripts/validate_ipa.py "$BUILD_DIR/GuruGuruKeyBoard-unsigned.ipa" | tee "$BUILD_DIR/ipa-report.json"
+python3 scripts/validate_safe_ipa.py "$BUILD_DIR/GuruGuruKeyBoard-unsigned.ipa" | tee "$BUILD_DIR/ipa-report.json"
 (cd "$BUILD_DIR" && shasum -a 256 GuruGuruKeyBoard-unsigned.ipa > SHA256SUMS.txt)
